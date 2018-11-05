@@ -14,49 +14,67 @@ Route.group('auth', () => {
    * @swagger
    * /auth/register:
    *   post:
+   *     operationId: auth-register
    *     tags:
    *       - Auth
    *     summary: Register new user
-   *     parameters:
-   *       - name: body
-   *         description: JSON of user
-   *         in:  body
-   *         required: true
-   *         schema:
-   *           $ref: '#/definitions/NewUser'
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json::
+   *           schema:
+   *             $ref: '#/components/schemas/NewUser'
    *     responses:
    *       201:
    *         description: user
    *         schema:
-   *           $ref: '#/definitions/User'
+   *           $ref: '#/components/schemas/User'
+   *       422:
+   *         $ref: '#/components/responses/ValidateFailed'
    */
-  Route.post('/register', 'Api/AuthController.register').validator('StoreUser')
+  Route.post('/register', 'Api/AuthController.register')
+    .validator('StoreUser')
 
   /**
    * @swagger
    * /auth/login:
    *   post:
+   *     operationId: auth-login
    *     tags:
    *       - Auth
    *     summary: Login to the application
-   *     consumes:
-   *       - "application/x-www-form-urlencoded"
-   *     parameters:
-   *       - name: email
-   *         description: email to use for login.
-   *         in: formData
-   *         required: true
-   *         type: string
-   *       - name: password
-   *         description: User's password.
-   *         in: formData
-   *         required: true
-   *         type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 required: true
+   *               password:
+   *                 type: string
+   *                 required: true
    *     responses:
    *       200:
    *         description: login success
-   *         schema:
-   *           $ref: '#/definitions/User'
+   *         type: object
+   *         properties:
+   *           type:
+   *             type: string
+   *             default: bearer
+   *           token:
+   *             type: string
+   *           refreshToken:
+   *             type: string
+   *           user:
+   *             type: object
+   *             $ref: '#/components/schemas/User'
+   *       422:
+   *         $ref: '#/components/responses/ValidateFailed'
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.post('/login', 'Api/AuthController.login')
 
@@ -64,12 +82,15 @@ Route.group('auth', () => {
    * @swagger
    * /auth/logout:
    *   post:
+   *     operationId: auth-logout
    *     tags:
    *       - Auth
    *     summary: Logout the application
    *     responses:
    *       200:
    *         description: logout success
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.post('/logout', 'Api/AuthController.logout').middleware('auth:jwt')
 
@@ -77,47 +98,106 @@ Route.group('auth', () => {
    * @swagger
    * /auth/login/{social}:
    *   post:
+   *     operationId: auth-social-login
    *     tags:
    *       - Auth
    *     summary: Social login
-   *     consumes:
-   *       - "application/x-www-form-urlencoded"
    *     parameters:
    *       - name: social
    *         description: social.
    *         in: path
    *         required: true
-   *         type: string
-   *         enum:
-   *           - facebook
-   *           - google
-   *           - twitter
-   *           - linkedin
-   *       - name: socialToken
-   *         description: social token.
-   *         in: formData
-   *         required: true
-   *         type: string
+   *         schema:
+   *           type: string
+   *           enum:
+   *             - facebook
+   *             - google
+   *             - twitter
+   *             - linkedin
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               social_token:
+   *                 type: string
+   *                 required: true
    *     responses:
    *       200:
-   *         description: auth
-   *         schema:
-   *           $ref: '#/definitions/User'
+   *         description: login success
+   *         type: object
+   *         properties:
+   *           type:
+   *             type: string
+   *             default: bearer xxx
+   *           token:
+   *             type: string
+   *           refreshToken:
+   *             type: string
+   *           user:
+   *             type: object
+   *             $ref: '#/components/schemas/User'
+   *       422:
+   *         $ref: '#/components/responses/ValidateFailed'
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.post('/login/:social', 'Api/AuthController.socialLogin')
 
   /**
    * @swagger
+   * /auth/refresh:
+   *   post:
+   *     operationId: auth-refresh
+   *     tags:
+   *       - Auth
+   *     summary: Refresh token
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               refresh_token:
+   *                 type: string
+   *                 required: true
+   *     responses:
+   *       200:
+   *         description: refresh success
+   *         type: object
+   *         properties:
+   *           type:
+   *             type: string
+   *             default: bearer
+   *           token:
+   *             type: string
+   *           refreshToken:
+   *             type: string
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   */
+  Route.post('/refresh', 'Api/AuthController.refresh')
+
+  /**
+   * @swagger
    * /auth/me:
    *   get:
+   *     operationId: auth-me
    *     tags:
    *       - Auth
    *     summary: Get current user
    *     responses:
    *       200:
-   *         description: auth
+   *         description: response User
    *         schema:
-   *           $ref: '#/definitions/User'
+   *           $ref: '#/components/schemas/User'
+   *       422:
+   *         $ref: '#/components/responses/ValidateFailed'
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.get('/me', 'Api/AuthController.me').middleware('auth:jwt')
 
@@ -128,17 +208,21 @@ Route.group('auth', () => {
    *     tags:
    *       - Auth
    *     summary: Get email to reset password
-   *     consumes:
-   *       - "application/x-www-form-urlencoded"
-   *     parameters:
-   *       - name: email
-   *         description: email.
-   *         in: formData
-   *         required: true
-   *         type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 required: true
    *     responses:
    *       200:
    *         description: message
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.post('/forgot', 'Api/AuthController.forgot')
 
@@ -146,17 +230,20 @@ Route.group('auth', () => {
    * @swagger
    * /auth/sendVerification:
    *   post:
+   *     operationId: auth-send-verification
    *     tags:
    *       - Auth
    *     summary: Resend verification email
-   *     consumes:
-   *       - "application/x-www-form-urlencoded"
-   *     parameters:
-   *       - name: email
-   *         description: email.
-   *         in: formData
-   *         required: true
-   *         type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 required: true
    *     responses:
    *       200:
    *         description: verify ok
@@ -167,25 +254,30 @@ Route.group('auth', () => {
    * @swagger
    * /auth/password:
    *   post:
+   *     operationId: auth-password
    *     tags:
    *       - Auth
    *     summary: Change password
-   *     consumes:
-   *       - "application/x-www-form-urlencoded"
-   *     parameters:
-   *       - name: password
-   *         description: password.
-   *         in: formData
-   *         required: true
-   *         type: string
-   *       - name: newPassword
-   *         description: newPassword.
-   *         in: formData
-   *         required: true
-   *         type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               password:
+   *                 type: string
+   *                 required: true
+   *               new_password:
+   *                 type: string
+   *                 required: true
    *     responses:
    *       200:
    *         description: message
+   *       422:
+   *         $ref: '#/components/responses/ValidateFailed'
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    */
   Route.post('/password', 'Api/AuthController.password').middleware('auth:jwt')
 }).prefix('/api/auth')

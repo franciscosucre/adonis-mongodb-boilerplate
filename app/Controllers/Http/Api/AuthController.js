@@ -1,7 +1,8 @@
+/** @typedef {import('@adonisjs/framework/src/Request')} Request */
+/** @typedef {import('@adonisjs/framework/src/Response')} Response */
 'use strict'
-const BaseController = use('App/Controllers/Http/Api/BaseController')
-const User = use('App/Models/User')
-const AccountNotVerifiedException = use('App/Exceptions/AccountNotVerifiedException')
+const BaseController = require('./BaseController')
+// const AccountNotVerifiedException = use('App/Exceptions/AccountNotVerifiedException')
 const LoginFailedException = use('App/Exceptions/LoginFailedException')
 const ResourceNotFoundException = use('App/Exceptions/ResourceNotFoundException')
 const BadRequestException = use('App/Exceptions/BadRequestException')
@@ -9,26 +10,24 @@ const ValidateErrorException = use('App/Exceptions/ValidateErrorException')
 const Config = use('Config')
 const Hash = use('Hash')
 const Mail = use('Mail')
-const crypto = use('crypto')
-const uuid = use('uuid')
+const crypto = require('crypto')
+const uuid = require('uuid')
+const User = use('App/Models/User')
 
-/**
- *
- * @class AuthController
- */
 class AuthController extends BaseController {
   /**
    * Register
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf UsersController
    *
    */
   async register ({ request, response }) {
-    const user = new User(request.only(['name', 'email', 'password', 'language']))
+    const user = new User(request.only(['name', 'email', 'password', 'locale']))
     const verificationToken = crypto.createHash('sha256').update(uuid.v4()).digest('hex')
     user.merge({
       verificationToken,
@@ -46,8 +45,9 @@ class AuthController extends BaseController {
   /**
    * Login
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    *
    * @memberOf AuthController
    *
@@ -59,23 +59,43 @@ class AuthController extends BaseController {
     // Attempt to login with email and password
     let data = null
     try {
-      data = await auth.attempt(email, password)
+      data = await auth.authenticator('jwt').withRefreshToken().attempt(email, password)
       data.user = await User.findBy({ email })
     } catch (error) {
       console.log(error)
       throw LoginFailedException.invoke('Invalid email or password')
     }
     if (!data.user.verified) {
-      throw AccountNotVerifiedException.invoke('Email is not verified')
+      // throw AccountNotVerifiedException.invoke('Email is not verified')
     }
     response.apiSuccess(data)
   }
 
   /**
+   * Refresh token
+   *
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
+   * @returns
+   *
+   * @memberOf AuthController
+   *
+   */
+  async refresh ({ request, response, auth }) {
+    const authData = await auth
+      .authenticator('jwt')
+      .newRefreshToken()
+      .generateForRefreshToken(request.input('refresh_token'))
+    return response.json(authData)
+  }
+
+  /**
    * Logout
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -90,8 +110,9 @@ class AuthController extends BaseController {
   /**
    * Social login
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -99,25 +120,48 @@ class AuthController extends BaseController {
    */
   async socialLogin ({ request, response, auth, ally, params }) {
     const social = params.social
-    await this.validate(request.all(), { socialToken: 'required|string' })
     await this.validate({ social }, { social: 'required|in:facebook,google' })
+    await this.validate(request.all(), { socialToken: 'required|string' })
     const socialToken = request.input('socialToken')
+    let clientSecret = Config.get('services.ally')[social].clientSecret
     let socialUser = null
     try {
-      socialUser = await ally.driver(social).fields(['name', 'email']).getUser(socialToken)
+      socialUser = await ally.driver(social).getUserByToken(socialToken, clientSecret)
     } catch (error) {
+      console.log(error)
       throw LoginFailedException.invoke('Invalid token')
     }
-    const user = await User.findOrCreate({ email: socialUser.getEmail() }, {
-      name: socialUser.getName(),
-      email: socialUser.getEmail(),
-      // language: socialUser.locale.substring(2),
-      verified: true,
-      socialId: socialUser.getId(),
-      password: use('uuid').v4(),
-      avatar: socialUser.getAvatar()
-    })
-    const data = await auth.generate(user)
+    let user = null
+    if (socialUser.getEmail()) {
+      user = await User.findOrCreate({ email: socialUser.getEmail() }, {
+        name: socialUser.getName(),
+        email: socialUser.getEmail(),
+        verified: true,
+        social_id: socialUser.getId(),
+        password: use('uuid').v4(),
+        avatar: socialUser.getAvatar()
+      })
+    } else if (socialUser.getOriginal().phone_number) {
+      const userData = socialUser.getOriginal()
+      user = await User.findOrCreate({ phone_number: userData.phone_number }, {
+        name: userData.name,
+        email: userData.email,
+        verified: true,
+        social_id: socialUser.getId(),
+        password: use('uuid').v4(),
+        avatar: socialUser.getAvatar()
+      })
+    } else {
+      user = await User.findOrCreate({ social_id: socialUser.getId() }, {
+        name: socialUser.getName(),
+        email: socialUser.getEmail(),
+        verified: true,
+        social_id: socialUser.getId(),
+        password: use('uuid').v4(),
+        avatar: socialUser.getAvatar()
+      })
+    }
+    const data = await auth.authenticator('jwt').generate(user)
     data.user = user
     return response.apiSuccess(data)
   }
@@ -170,23 +214,25 @@ class AuthController extends BaseController {
   /**
    * Me
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
    *
    */
   async me ({ request, response, auth }) {
-    const user = await auth.getUser()
+    const user = auth.user
     return response.apiSuccess(user)
   }
 
   /**
    * Forgot
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -214,8 +260,9 @@ class AuthController extends BaseController {
   /**
    * Reset password form
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -233,8 +280,9 @@ class AuthController extends BaseController {
   /**
    * Reset password
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -251,8 +299,7 @@ class AuthController extends BaseController {
     if (!token || !user) {
       throw BadRequestException.invoke(`Invalid token`)
     }
-    const hashPassword = await Hash.make(password)
-    user.password = hashPassword
+    user.password = password
     user.unset('verificationToken')
     await user.save()
     await session.flash({ message: 'Reset password successfully' })
@@ -262,8 +309,9 @@ class AuthController extends BaseController {
   /**
    * Change password
    *
-   * @param {any} request
-   * @param {any} response
+   * @param {object} ctx
+   * @param {Response} ctx.response
+   * @param {Request} ctx.request
    * @returns
    *
    * @memberOf AuthController
@@ -273,13 +321,12 @@ class AuthController extends BaseController {
     await this.validate(request.all(), { password: 'required', newPassword: 'required|min:6|max:50' })
     const password = request.input('password')
     const newPassword = request.input('newPassword')
-    const user = await auth.getUser()
+    const user = auth.user
     const check = await Hash.verify(password, user.password)
     if (!check) {
       throw ValidateErrorException.invoke({ password: 'Password does not match' })
     }
-    const hashPassword = await Hash.make(newPassword)
-    user.set('password', hashPassword)
+    user.password = newPassword
     user.unset('verificationToken')
     await user.save()
     response.apiSuccess(user, 'Change password successfully')

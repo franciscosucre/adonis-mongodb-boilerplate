@@ -16,6 +16,7 @@ const providers = [
   '@adonisjs/framework/providers/ViewProvider',
   '@adonisjs/bodyparser/providers/BodyParserProvider',
   '@adonisjs/cors/providers/CorsProvider',
+  '@adonisjs/shield/providers/ShieldProvider',
   '@adonisjs/auth/providers/AuthProvider',
   '@adonisjs/mail/providers/MailProvider',
   '@adonisjs/validator/providers/ValidatorProvider',
@@ -24,7 +25,8 @@ const providers = [
   '@adonisjs/ally/providers/AllyProvider',
   'lucid-mongo/providers/LucidMongoProvider',
   Helpers.appRoot('app/Providers/ExtendValidatorProvider'),
-  Helpers.appRoot('app/Providers/ExtendResponseProvider')
+  Helpers.appRoot('app/Providers/ExtendResponseProvider'),
+  Helpers.appRoot('app/Providers/BindInstanceProvider')
 ]
 
 /*

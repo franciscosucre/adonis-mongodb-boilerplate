@@ -1,5 +1,9 @@
 'use strict'
-const BaseController = use('App/Controllers/Http/Api/BaseController')
+/** @typedef {import('@adonisjs/framework/src/Request')} Request */
+/** @typedef {import('@adonisjs/auth/src/Schemes/Session')} AuthSession */
+
+const BaseController = require('./BaseController')
+/** @type {typeof import('../../../Models/User')} */
 const User = use('App/Models/User')
 // const Validator = use('Validator')
 const UnAuthorizeException = use('App/Exceptions/UnAuthorizeException')
@@ -12,26 +16,23 @@ class UsersController extends BaseController {
   /**
    * Index
    *
-   * @param {any} request
-   * @param {any} response
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
+   * @param {Response} ctx.response
    */
-  async index ({ request, response }) {
-    const users = await User.query(request.getQuery()).fetch()
+  async index ({ request, response, decodeQuery }) {
+    const users = await User.query(decodeQuery()).fetch()
     return response.apiCollection(users)
   }
 
   /**
    * Store
    *
-   * @param {any} request
-   * @param {any} response
-   * @returns
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
+   * @param {Response} ctx.response
    */
   // async store ({request, response}) {
   //   await this.validate(request.all(), User.rules())
@@ -55,37 +56,30 @@ class UsersController extends BaseController {
   /**
    * Show
    *
-   * @param {any} request
-   * @param {any} response
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
+   * @param {Response} ctx.response
    */
-  async show ({ request, response, instance }) {
+  async show ({ request, response, instance, decodeQuery }) {
     const user = instance
-    // await user.related(request.getQuery().with).load()
+    // await user.related(decodeQuery().with).load()
     return response.apiItem(user)
   }
 
   /**
    * Update
    *
-   * @param {any} request
-   * @param {any} response
-   * @returns
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
    */
   async update ({ request, response, params, instance, auth }) {
-    // const userId = params.id
-    // await this.validateAttributes(request.all(), User.rules(userId))
-
     const user = instance
     if (String(auth.user._id) !== String(user._id)) {
       throw UnAuthorizeException.invoke()
     }
-    user.merge(request.only(['name', 'language']))
+    user.merge(request.only(['name', 'locale']))
     await user.save()
     return response.apiUpdated(user)
   }
@@ -93,11 +87,10 @@ class UsersController extends BaseController {
   /**
    * Destroy
    *
-   * @param {any} request
-   * @param {any} response
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
+   * @param {Response} ctx.response
    */
   async destroy ({ request, response, instance, auth }) {
     const user = instance
@@ -111,11 +104,10 @@ class UsersController extends BaseController {
   /**
    * Upload
    *
-   * @param {any} request
-   * @param {any} response
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
+   * @param {Response} ctx.response
    */
   async upload ({ request, response, instance, auth }) {
     const user = instance
@@ -126,7 +118,7 @@ class UsersController extends BaseController {
       maxSize: '2mb',
       allowedExtensions: ['jpg', 'png', 'jpeg']
     })
-    const fileName = `${use('uuid').v1().replace(/-/g, '')}_${image._clientName}`
+    const fileName = `${use('uuid').v1().replace(/-/g, '')}_${image.clientName}`
     await image.move(use('Helpers').publicPath('uploads'), { name: fileName })
     const filePath = `uploads/${fileName}`
     await user.images().create({ fileName, filePath })
@@ -137,15 +129,13 @@ class UsersController extends BaseController {
   /**
    * Get images of user
    *
-   * @param {any} request
-   * @param {any} response
-   *
-   * @memberOf UsersController
-   *
+   * @param {object} ctx
+   * @param {AuthSession} ctx.auth
+   * @param {Request} ctx.request
    */
-  async images ({ request, response, instance }) {
+  async images ({ request, response, instance, decodeQuery }) {
     const user = instance
-    const images = await user.images().query(request.getQuery()).fetch()
+    const images = await user.images().query(decodeQuery()).fetch()
     return response.apiCollection(images)
   }
 }

@@ -13,6 +13,7 @@ module.exports = {
   |
   */
   appKey: Env.get('APP_KEY'),
+  baseUrl: Env.get('APP_URL'),
 
   http: {
     /*

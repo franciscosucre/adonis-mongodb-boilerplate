@@ -13,8 +13,10 @@ const Server = use('Server')
 */
 const globalMiddleware = [
   'Adonis/Middleware/BodyParser',
+  'Adonis/Middleware/Session',
+  'Adonis/Middleware/Shield',
   'Adonis/Middleware/AuthInit',
-  'Adonis/Middleware/Session'
+  'App/Middleware/DecodeQuery'
 ]
 
 /*
@@ -35,8 +37,8 @@ const globalMiddleware = [
 |
 */
 const namedMiddleware = {
-  auth: 'Adonis/Middleware/Auth',
-  instance: 'App/Middleware/Instance'
+  auth: 'Adonis/Middleware/Auth'
+  // instance: 'App/Middleware/Instance'
 }
 
 /*
